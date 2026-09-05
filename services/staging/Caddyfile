@@ -24,3 +24,10 @@ adminer.ablewatts.techathalon.com {
         ca https://acme.zerossl.com/v2/DV90
     }
 }
+
+app.ablewatts.techathalon.com {
+      reverse_proxy ablewatts-mercury-web:80
+      tls {
+          ca https://acme.zerossl.com/v2/DV90
+      }
+  }
