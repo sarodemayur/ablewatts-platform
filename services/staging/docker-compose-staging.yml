@@ -92,21 +92,16 @@ services:
       - backend
 
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2
     container_name: ablewatts-staging-caddy
-    restart: unless-stopped
-    # The only publicly bound ports in the stack. 80 must stay open for ACME.
+    restart: always
     ports:
-      - '${HTTP_PORT:-80}:80'
-      - '${HTTPS_PORT:-443}:443'
+      - '80:80'
+      - '443:443'
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ablewatts_staging_caddy_data:/data
-      - ablewatts_staging_caddy_config:/config
-    depends_on:
-      - web
-      - backend
-      - adminer
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
 
 volumes:
   ablewatts_staging_postgres_data:
