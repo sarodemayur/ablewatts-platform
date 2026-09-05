@@ -5,6 +5,10 @@ COMPOSE_FILE_staging = ./services/staging/docker-compose-staging.yml
 NAME=ablewatts-admin-development
 NAME_staging=ablewatts-admin-staging
 
+# services/.env is written by `create-env-stage` and supplies POSTGRES_*, VITE_API_BASE_URL,
+# HTTP_PORT/HTTPS_PORT to the staging compose file.
+COMPOSE_STAGING = docker compose --env-file ./services/.env -f $(COMPOSE_FILE_staging) -p $(NAME_staging)
+
 all: 
 	@echo 
 	@echo "please specify the command 👊"
@@ -41,7 +45,7 @@ deploy-staging:
 	@echo
 	@echo "🏭Building & 🚀Deploying staging services"
 	@echo
-	@BASE_PATH=$(BASE_PATH) docker compose -f $(COMPOSE_FILE_staging) -p $(NAME_staging) up -d --build
+	@BASE_PATH=$(BASE_PATH) $(COMPOSE_STAGING) up -d --build
 
 delete:
 	@echo
@@ -51,9 +55,9 @@ delete:
 
 delete-staging:
 	@echo
-	@echo "🏭Building & 🚀Deploying staging services"
+	@echo "🗑️  Stopping staging services (volumes kept)"
 	@echo
-	@BASE_PATH=$(BASE_PATH) docker compose -f $(COMPOSE_FILE_staging) -p $(NAME_staging) down
+	@BASE_PATH=$(BASE_PATH) $(COMPOSE_STAGING) down
 
 recreate:
 	@echo
@@ -78,13 +82,34 @@ recreate-staging:
 	@echo
 	@echo "🚀  Deploying staging services"
 	@echo
-	@$(MAKE) --no-print-directory delete-staging
+	@# Envs first: `down` needs services/.env for --env-file, so it can't run before this.
 	@$(MAKE) --no-print-directory decrypt-envs-staging
 	@$(MAKE) --no-print-directory create-env-stage stage=staging
+	@$(MAKE) --no-print-directory delete-staging
+	@$(MAKE) --no-print-directory deploy-staging
 	@echo "✅ Staging deployed. DB migrate + seed run inside the backend container on boot."
 
+build-staging:
+	@echo
+	@echo "🏭Building staging images (no restart)"
+	@echo
+	@BASE_PATH=$(BASE_PATH) $(COMPOSE_STAGING) build
+
+ps-staging:
+	@BASE_PATH=$(BASE_PATH) $(COMPOSE_STAGING) ps
+
 logs-staging:
-	@BASE_PATH=$(BASE_PATH) docker compose -f $(COMPOSE_FILE_staging) -p $(NAME_staging) logs -f
+	@BASE_PATH=$(BASE_PATH) $(COMPOSE_STAGING) logs -f
+
+migrate-staging:
+	@BASE_PATH=$(BASE_PATH) $(COMPOSE_STAGING) exec backend pnpm exec prisma migrate deploy
 
 seed-staging:
-	@BASE_PATH=$(BASE_PATH) docker compose -f $(COMPOSE_FILE_staging) -p $(NAME_staging) exec backend pnpm exec tsx src/db/seed.ts
+	@BASE_PATH=$(BASE_PATH) $(COMPOSE_STAGING) exec backend pnpm exec tsx prisma/seed.ts
+
+# Wipes the staging database and uploads as well as the containers.
+destroy-staging:
+	@echo
+	@echo "💣 Deleting staging services AND volumes (database + uploads)"
+	@echo
+	@BASE_PATH=$(BASE_PATH) $(COMPOSE_STAGING) down -v

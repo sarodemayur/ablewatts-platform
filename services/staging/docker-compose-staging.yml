@@ -1,0 +1,115 @@
+# Staging stack — the full app, unlike services/docker-compose.yml which is infra-only.
+#
+# Run it through the Makefile from the repo root, never by hand:
+#   make recreate-staging   # decrypt envs -> .env -> build + up
+#   make deploy-staging     # build + up (envs already in place)
+#   make logs-staging
+#
+# Relative paths below resolve against this file's directory (services/staging/).
+# Interpolated ${...} vars come from services/.env (passed via --env-file).
+name: ablewatts-admin-staging
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ablewatts-staging-postgres
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    # Loopback-only: the DB is reached over the compose network, never from outside
+    # the host. Use an SSH tunnel (or Adminer) for manual access.
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - ablewatts_staging_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-ablewatts} -d ${POSTGRES_DB:-ablewatts}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  adminer:
+    image: adminer:5
+    container_name: ablewatts-staging-adminer
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    # No published port — Caddy fronts it at adminer.ablewatts.techathalon.com.
+    expose:
+      - '8080'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    build:
+      # Repo root: the pnpm workspace lockfile lives there.
+      context: ../..
+      dockerfile: backend/Dockerfile
+    image: ablewatts-staging-backend:latest
+    container_name: ablewatts-staging-backend
+    restart: unless-stopped
+    # DATABASE_URL/JWT_SECRET/CORS_ORIGIN — written by `make create-env-stage stage=staging`.
+    env_file:
+      - ../../backend/.env
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      # The entrypoint applies migrations and runs the (idempotent) seed on boot.
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      RUN_SEED: ${RUN_SEED:-true}
+    volumes:
+      - ablewatts_staging_green_data:/app/backend/uploads/green-data
+    expose:
+      - '4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1:4000/health']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  web:
+    build:
+      context: ../..
+      dockerfile: frontend/Dockerfile
+      args:
+        # Baked into the bundle at build time — change it and you must rebuild.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://api.admin.ablewatts.techathalon.com/api}
+    image: ablewatts-staging-web:latest
+    container_name: ablewatts-staging-web
+    restart: unless-stopped
+    expose:
+      - '80'
+    depends_on:
+      - backend
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: ablewatts-staging-caddy
+    restart: unless-stopped
+    # The only publicly bound ports in the stack. 80 must stay open for ACME.
+    ports:
+      - '${HTTP_PORT:-80}:80'
+      - '${HTTPS_PORT:-443}:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ablewatts_staging_caddy_data:/data
+      - ablewatts_staging_caddy_config:/config
+    depends_on:
+      - web
+      - backend
+      - adminer
+
+volumes:
+  ablewatts_staging_postgres_data:
+  ablewatts_staging_green_data:
+  ablewatts_staging_caddy_data:
+  ablewatts_staging_caddy_config:

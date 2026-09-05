@@ -18,7 +18,8 @@ api.admin.ablewatts.techathalon.com {
 }
 
 adminer.ablewatts.techathalon.com {
-    reverse_proxy adminer:8090
+    # 8080 is the port inside the container; ADMINER_PORT only maps a host port.
+    reverse_proxy adminer:8080
     tls {
         ca https://acme.zerossl.com/v2/DV90
     }

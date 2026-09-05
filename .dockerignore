@@ -1,0 +1,30 @@
+# Build contexts for backend/Dockerfile and frontend/Dockerfile are the repo root,
+# so this file keeps secrets, local installs and build output out of every image.
+
+.git
+.gitignore
+.envrc
+
+# Secrets — envs are injected at runtime (env_file) or as build args, never baked in.
+**/.env
+**/.env.*
+**/*.gpg
+
+# Local installs / build output — images install and build from the lockfile.
+**/node_modules
+**/dist
+**/dist-ssr
+coverage
+
+# Runtime data
+backend/uploads/green-data/*
+
+# Docs, tooling, editors
+README.md
+**/README.md
+services
+scripts
+.vscode
+.idea
+.DS_Store
+**/*.log
