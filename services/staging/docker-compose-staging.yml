@@ -100,8 +100,8 @@ services:
       - '443:443'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
+      - ablewatts_staging_caddy_data:/data
+      - ablewatts_staging_caddy_config:/config
 
 volumes:
   ablewatts_staging_postgres_data:
