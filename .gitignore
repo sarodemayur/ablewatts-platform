@@ -1,5 +1,7 @@
 # Local environment and credentials
 .env
+.env.development
+.env.staging
 .env.*
 .envrc
 !.env.example
