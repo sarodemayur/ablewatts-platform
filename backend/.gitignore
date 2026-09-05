@@ -1,0 +1,6 @@
+node_modules
+dist
+.env
+uploads/green-data/*
+!uploads/green-data/.gitkeep
+*.log

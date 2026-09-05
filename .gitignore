@@ -1,0 +1,17 @@
+# Local environment and credentials
+.env
+.env.*
+.envrc
+!.env.example
+!.env.*.example
+
+# Dependencies and generated output
+node_modules/
+dist/
+coverage/
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

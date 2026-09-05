@@ -1,0 +1,25 @@
+{
+    email kush.thakkar@techathalon.com
+}
+
+admin.ablewatts.techathalon.com {
+    reverse_proxy /api/* backend:4000
+    reverse_proxy web:80
+    tls {
+        ca https://acme.zerossl.com/v2/DV90
+    }
+}
+
+api.admin.ablewatts.techathalon.com {
+    reverse_proxy backend:4000
+    tls {
+        ca https://acme.zerossl.com/v2/DV90
+    }
+}
+
+adminer.ablewatts.techathalon.com {
+    reverse_proxy adminer:8090
+    tls {
+        ca https://acme.zerossl.com/v2/DV90
+    }
+}

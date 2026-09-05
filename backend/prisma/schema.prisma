@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 1 — core (admin auth, URDB rate engine, green-data files)
+// ---------------------------------------------------------------------------
+
+enum AdminType {
+  super_admin
+  admin
+  editor
+}
+
+model Admin {
+  id           Int       @id @default(autoincrement())
+  type         AdminType @default(admin)
+  firstName    String
+  lastName     String
+  email        String    @unique
+  username     String    @unique
+  accessLevel  Int       @default(50) @map("access_level")
+  active       Boolean   @default(true)
+  passwordHash String    @map("password_hash")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  lastLoginAt  DateTime? @map("last_login_at")
+
+  urdbRates      UrdbRate[]
+  greenDataFiles GreenDataFile[]
+  actionLogs     AdminActionLog[]
+
+  @@map("admins")
+}
+
+enum RateStatus {
+  approved
+  unapproved
+}
+
+// One URDB "bill"/rate-structure document per utility tariff, mirroring the
+// NREL Utility Rate Database JSON schema. Tier/period/schedule structures are
+// kept as JSONB (rateData) to preserve the exact shape the calculation engine
+// expects, rather than fully normalizing them into relational tables.
+model UrdbRate {
+  id          Int        @id @default(autoincrement())
+  label       String?
+  name        String
+  utility     String
+  sector      String
+  state       String?
+  description String?
+  source      String?
+  status      RateStatus @default(unapproved)
+
+  startDate DateTime  @map("start_date")
+  endDate   DateTime? @map("end_date")
+
+  // "Basic Information" fields from the original Add Utility Rate form.
+  supersedesLabel                     String? @map("supersedes_label")
+  serviceType                         String? @map("service_type")
+  sourceParent                        String? @map("source_parent")
+  compensationForDistributionGeneration String? @map("compensation_for_distribution_generation")
+  assumeNetMetering                   Boolean @default(false) @map("assume_net_metering")
+  basicComments                       String? @map("basic_comments")
+
+  // "Applicability" fields — who qualifies for this rate, as opposed to
+  // rateData below, which is the actual charge calculation structure.
+  demandApplicabilityMin          Float?  @map("demand_applicability_min")
+  demandApplicabilityMax          Float?  @map("demand_applicability_max")
+  demandApplicabilityUnit         String  @default("kW") @map("demand_applicability_unit")
+  demandApplicabilityHistoryMonths Int?   @map("demand_applicability_history_months")
+  energyApplicabilityMin           Float? @map("energy_applicability_min")
+  energyApplicabilityMax           Float? @map("energy_applicability_max")
+  energyApplicabilityHistoryMonths Int?   @map("energy_applicability_history_months")
+  serviceVoltageMin                Float? @map("service_voltage_min")
+  serviceVoltageMax                Float? @map("service_voltage_max")
+  voltageCategory                  String? @map("voltage_category")
+  phaseWiring                      String? @map("phase_wiring")
+
+  fixedDailyCharge   Float @default(0) @map("fixed_daily_charge")
+  fixedMonthlyCharge Float @default(0) @map("fixed_monthly_charge")
+  minMonthlyCharge   Float @default(0) @map("min_monthly_charge")
+  annualMinCharge    Float @default(0) @map("annual_min_charge")
+
+  // Holds: flatdemandunit/structure/months, demandrateunit/structure/
+  // weekday+weekendschedule, coincidentrateunit/structure/schedule,
+  // energyratestructure/weekday+weekendschedule — same field names/shape
+  // as the original Mongo `urdb` documents.
+  rateData Json @map("rate_data")
+
+  createdByAdminId Int   @map("created_by_admin_id")
+  createdBy        Admin @relation(fields: [createdByAdminId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([utility, sector, name])
+  @@index([status])
+  @@map("urdb_rates")
+}
+
+model GreenDataFile {
+  id           Int      @id @default(autoincrement())
+  adminId      Int      @map("admin_id")
+  admin        Admin    @relation(fields: [adminId], references: [id])
+  fileName     String   @map("file_name")
+  realFileName String   @map("real_file_name")
+  storagePath  String   @map("storage_path")
+  isSample     Boolean  @default(false) @map("is_sample")
+  uploadedAt   DateTime @default(now()) @map("uploaded_at")
+
+  @@map("green_data_files")
+}
+
+model AdminActionLog {
+  id          Int      @id @default(autoincrement())
+  adminId     Int      @map("admin_id")
+  admin       Admin    @relation(fields: [adminId], references: [id])
+  actionGroup String   @map("action_group")
+  action      String
+  targetType  String?  @map("target_type")
+  targetId    String?  @map("target_id")
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("admin_action_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — Mercury admin modules: URDB lookup tables, end-user account
+// management, surveys/feedback, and homepage content.
+// ---------------------------------------------------------------------------
+
+// Sectors/units/service-types/voltage-categories/phase-wires from the
+// original Venus.php module. Structurally identical (code/label/active), so
+// modeled as one table differentiated by category rather than 5 near-
+// identical tables — backs the dropdowns on the URDB rate form.
+enum LookupCategory {
+  sector
+  unit
+  service_type
+  voltage_category
+  phase_wire
+}
+
+model Lookup {
+  id        Int            @id @default(autoincrement())
+  category  LookupCategory
+  code      String
+  label     String
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@unique([category, code])
+  @@map("lookups")
+}
+
+enum AppUserType {
+  registered
+  demo
+  beta
+  guest
+  invite
+}
+
+model AppUser {
+  id          Int         @id @default(autoincrement())
+  type        AppUserType
+  email       String      @unique
+  firstName   String?
+  lastName    String?
+  isConverted Boolean     @default(false) @map("is_converted")
+  active      Boolean     @default(true)
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  surveyResponses SurveyResponse[]
+  feedback        Feedback[]
+
+  @@map("app_users")
+}
+
+enum HomepageContentKey {
+  about_us
+  contact_us
+  terms_of_service
+  privacy_policy
+}
+
+model HomepageContent {
+  key       HomepageContentKey @id
+  content   String
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  @@map("homepage_content")
+}
+
+model Feedback {
+  id        Int      @id @default(autoincrement())
+  appUserId Int?     @map("app_user_id")
+  appUser   AppUser? @relation(fields: [appUserId], references: [id])
+  name      String?
+  email     String?
+  message   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("feedback")
+}
+
+// Questions are kept as free-form JSON (array of {id, text, type}) rather
+// than fully normalized — the original's survey builder is out of scope;
+// this supports simple admin-authored surveys and viewing responses.
+model Survey {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  questions   Json
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  responses SurveyResponse[]
+
+  @@map("surveys")
+}
+
+model SurveyResponse {
+  id          Int      @id @default(autoincrement())
+  surveyId    Int      @map("survey_id")
+  survey      Survey   @relation(fields: [surveyId], references: [id])
+  appUserId   Int?     @map("app_user_id")
+  appUser     AppUser? @relation(fields: [appUserId], references: [id])
+  answers     Json
+  submittedAt DateTime @default(now()) @map("submitted_at")
+
+  @@map("survey_responses")
+}

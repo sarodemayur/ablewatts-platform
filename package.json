@@ -1,0 +1,16 @@
+{
+  "name": "ablewatts-platform",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev": "pnpm --parallel -r run dev",
+    "backend:serve": "pnpm --filter ablewatts-backend dev",
+    "frontend:serve": "pnpm --filter ablewatts-frontend dev",
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r exec tsc --noEmit -b",
+    "db:generate": "pnpm --filter ablewatts-backend prisma:generate",
+    "db:migrate": "pnpm --filter ablewatts-backend prisma:migrate",
+    "db:seed": "pnpm --filter ablewatts-backend seed",
+    "db:studio": "pnpm --filter ablewatts-backend prisma:studio"
+  }
+}
