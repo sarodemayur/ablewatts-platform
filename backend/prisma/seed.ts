@@ -19,7 +19,7 @@ async function main() {
       type: AdminType.super_admin,
       firstName: "Admin",
       lastName: "User",
-      email: "admin@ablewatts.local",
+      email: "admin@ablewatts.com",
       username: "admin",
       accessLevel: 99,
       active: true,

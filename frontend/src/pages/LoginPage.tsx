@@ -7,8 +7,8 @@ import logoMark from "../assets/logo-mark.png";
 export function LoginPage() {
   const { admin, login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin@ablewatts.local");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
